@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { UserPlus, UserCheck, UserX, Search, Users, Clock, Ban } from "lucide-react"
 import { contactsApi, usersApi, type Contact, type User } from "@/lib/api"
+import { useToast } from "@/contexts/toast-context"
 
 interface ContactsPanelProps {
   currentUserId: string
@@ -13,6 +14,7 @@ interface ContactsPanelProps {
 type ContactTab = "contacts" | "pending" | "add"
 
 export function ContactsPanel({ currentUserId, allUsers, onStartDm }: ContactsPanelProps) {
+  const { showToast } = useToast()
   const [activeTab, setActiveTab] = useState<ContactTab>("contacts")
   const [contacts, setContacts] = useState<Contact[]>([])
   const [pendingRequests, setPendingRequests] = useState<Contact[]>([])
@@ -63,9 +65,14 @@ export function ContactsPanel({ currentUserId, allUsers, onStartDm }: ContactsPa
     setActionInProgress(userId)
     try {
       await contactsApi.add(userId)
+      const user = allUsers.find(u => u.id === userId)
+      showToast(`Friend request sent to ${user?.username || "user"}`, "success")
     } catch (e: any) {
       if (!e?.message?.toLowerCase().includes("existe") && !e?.message?.toLowerCase().includes("exist")) {
         console.error(e)
+        showToast("Failed to send friend request", "error")
+      } else {
+        showToast("Friend request already exists", "info")
       }
     } finally {
       await fetchContacts()
@@ -77,8 +84,13 @@ export function ContactsPanel({ currentUserId, allUsers, onStartDm }: ContactsPa
     setActionInProgress(senderId)
     try {
       await contactsApi.accept(senderId)
+      const user = allUsers.find(u => u.id === senderId)
+      showToast(`${user?.username || "User"} added to contacts`, "success")
       await fetchContacts()
-    } catch (e) { console.error(e) }
+    } catch (e) {
+      console.error(e)
+      showToast("Failed to accept friend request", "error")
+    }
     finally { setActionInProgress(null) }
   }
 
@@ -86,8 +98,13 @@ export function ContactsPanel({ currentUserId, allUsers, onStartDm }: ContactsPa
     setActionInProgress(`reject-${senderId}`)
     try {
       await contactsApi.reject(senderId)
+      const user = allUsers.find(u => u.id === senderId)
+      showToast(`Friend request from ${user?.username || "user"} rejected`, "info")
       await fetchContacts()
-    } catch (e) { console.error(e) }
+    } catch (e) {
+      console.error(e)
+      showToast("Failed to reject friend request", "error")
+    }
     finally { setActionInProgress(null) }
   }
 
@@ -95,8 +112,14 @@ export function ContactsPanel({ currentUserId, allUsers, onStartDm }: ContactsPa
     setActionInProgress(`block-${contactId}`)
     try {
       await contactsApi.update(contactId, { status: "blocked" })
+      const contact = contacts.find(c => c.contactId === contactId)
+      const user = getUserById(contact?.contactId || "")
+      showToast(`${user?.username || "User"} blocked`, "success")
       await fetchContacts()
-    } catch (e) { console.error(e) }
+    } catch (e) {
+      console.error(e)
+      showToast("Failed to block user", "error")
+    }
     finally { setActionInProgress(null) }
   }
 
@@ -104,8 +127,14 @@ export function ContactsPanel({ currentUserId, allUsers, onStartDm }: ContactsPa
     setActionInProgress(`remove-${contactId}`)
     try {
       await contactsApi.remove(contactId)
+      const contact = contacts.find(c => c.contactId === contactId)
+      const user = getUserById(contact?.contactId || "")
+      showToast(`${user?.username || "User"} removed from contacts`, "success")
       await fetchContacts()
-    } catch (e) { console.error(e) }
+    } catch (e) {
+      console.error(e)
+      showToast("Failed to remove contact", "error")
+    }
     finally { setActionInProgress(null) }
   }
 

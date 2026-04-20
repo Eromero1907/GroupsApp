@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { X, UserPlus, UserMinus, Search, Hash, Shield, ChevronDown, Globe, Lock, CheckCircle, XCircle } from "lucide-react"
 import { groupsApi, type Group, type GroupMember, type User, type GroupSettings, type JoinRequest } from "@/lib/api"
 import { useAuth } from "@/contexts/auth-context"
+import { useToast } from "@/contexts/toast-context"
 
 interface ManageMembersModalProps {
   isOpen: boolean
@@ -17,6 +18,7 @@ type Tab = "members" | "add" | "requests" | "settings"
 
 export function ManageMembersModal({ isOpen, onClose, group, allUsers, userContacts }: ManageMembersModalProps) {
   const { user: currentUser } = useAuth()
+  const { showToast } = useToast()
   const [members, setMembers] = useState<GroupMember[]>([])
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([])
   const [settings, setSettings] = useState<GroupSettings | null>(null)
@@ -88,8 +90,13 @@ export function ManageMembersModal({ isOpen, onClose, group, allUsers, userConta
       } else {
         await groupsApi.addMember(group.id, userId)
       }
+      const user = allUsers.find(u => u.id === userId)
+      showToast(`${user?.username} added to group`, "success")
       await fetchData()
-    } catch (e) { console.error(e) }
+    } catch (e) {
+      console.error(e)
+      showToast("Failed to add member", "error")
+    }
     finally { setActionInProgress(null) }
   }
 
@@ -98,11 +105,16 @@ export function ManageMembersModal({ isOpen, onClose, group, allUsers, userConta
     try {
       await groupsApi.reviewJoinRequest(requestId, approved ? "approved" : "rejected")
       if (approved) {
+        showToast("Join request approved", "success")
         await fetchData()
       } else {
+        showToast("Join request rejected", "info")
         setJoinRequests(prev => prev.filter(r => r.id !== requestId))
       }
-    } catch (e) { console.error(e) }
+    } catch (e) {
+      console.error(e)
+      showToast("Failed to process request", "error")
+    }
     finally { setActionInProgress(null) }
   }
 
@@ -110,8 +122,13 @@ export function ManageMembersModal({ isOpen, onClose, group, allUsers, userConta
     setActionInProgress(userId)
     try {
       await groupsApi.removeMember(group.id, userId)
+      const user = allUsers.find(u => u.id === userId)
+      showToast(`${user?.username} removed from group`, "success")
       setMembers(prev => prev.filter(m => m.userId !== userId))
-    } catch (e) { console.error(e) }
+    } catch (e) {
+      console.error(e)
+      showToast("Failed to remove member", "error")
+    }
     finally { setActionInProgress(null) }
   }
 
@@ -119,8 +136,13 @@ export function ManageMembersModal({ isOpen, onClose, group, allUsers, userConta
     setActionInProgress(`promote-${userId}`)
     try {
       await groupsApi.promoteToAdmin(group.id, userId)
+      const user = allUsers.find(u => u.id === userId)
+      showToast(`${user?.username} is now an admin`, "success")
       await fetchData()
-    } catch (e) { console.error(e) }
+    } catch (e) {
+      console.error(e)
+      showToast("Failed to promote user", "error")
+    }
     finally { setActionInProgress(null) }
   }
 
@@ -128,8 +150,13 @@ export function ManageMembersModal({ isOpen, onClose, group, allUsers, userConta
     setActionInProgress(`demote-${userId}`)
     try {
       await groupsApi.demoteFromAdmin(group.id, userId)
+      const user = allUsers.find(u => u.id === userId)
+      showToast(`${user?.username} is no longer an admin`, "success")
       await fetchData()
-    } catch (e) { console.error(e) }
+    } catch (e) {
+      console.error(e)
+      showToast("Failed to remove admin privileges", "error")
+    }
     finally { setActionInProgress(null) }
   }
 
@@ -142,8 +169,12 @@ export function ManageMembersModal({ isOpen, onClose, group, allUsers, userConta
         maxMembers: settingsForm.maxMembers ? parseInt(settingsForm.maxMembers) : null,
         rules: settingsForm.rules || null,
       })
+      showToast("Settings saved successfully", "success")
       await fetchData()
-    } catch (e) { console.error(e) }
+    } catch (e) {
+      console.error(e)
+      showToast("Failed to save settings", "error")
+    }
     finally { setSavingSettings(false) }
   }
 

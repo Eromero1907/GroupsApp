@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { X, Hash, Lock, Globe } from "lucide-react"
 import { groupsApi, type Group } from "@/lib/api"
+import { useToast } from "@/contexts/toast-context"
 
 interface CreateGroupModalProps {
   isOpen: boolean
@@ -11,6 +12,7 @@ interface CreateGroupModalProps {
 }
 
 export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGroupModalProps) {
+  const { showToast } = useToast()
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [visibility, setVisibility] = useState<"public" | "private">("public")
@@ -35,9 +37,12 @@ export function CreateGroupModal({ isOpen, onClose, onGroupCreated }: CreateGrou
         joinPolicy,
         maxMembers: maxMembers ? parseInt(maxMembers) : undefined,
       })
+      showToast(`Group "${newGroup.name}" created successfully`, "success")
       onGroupCreated(newGroup)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create channel")
+      const errorMsg = err instanceof Error ? err.message : "Failed to create group"
+      setError(errorMsg)
+      showToast(errorMsg, "error")
     } finally { setIsSubmitting(false) }
   }
 

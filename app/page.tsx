@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from "react"
 import { useAuth, AuthProvider } from "@/contexts/auth-context"
+import { ToastProvider } from "@/contexts/toast-context"
 import { AuthPage } from "@/components/auth-page"
 import { Dashboard } from "@/components/dashboard"
+import { ToastContainer } from "@/components/toast-container"
 
 function AppContent() {
   const { isAuthenticated, isLoading } = useAuth()
@@ -30,7 +32,10 @@ function AppContent() {
 export default function Home() {
   return (
     <AuthProvider>
-      <AppContent />
+      <ToastProvider>
+        <AppContent />
+        <ToastContainer />
+      </ToastProvider>
     </AuthProvider>
   )
 }

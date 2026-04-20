@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { Hash, Users, LogIn } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
+import { useToast } from "@/contexts/toast-context"
 import { MessageItem } from "@/components/message-item"
 import { MessageInput } from "@/components/message-input"
 import { messagesApi, groupsApi, type Group, type Message, type Presence, type User } from "@/lib/api"
@@ -22,6 +23,7 @@ export function MessagePanel({
   typingUserIds, onStartTyping, onStopTyping,
 }: MessagePanelProps) {
   const { user: currentUser } = useAuth()
+  const { showToast } = useToast()
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isMember, setIsMember] = useState(false)
@@ -31,6 +33,41 @@ export function MessagePanel({
   const containerRef = useRef<HTMLDivElement>(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
   const usersMap = new Map(users.map(u => [u.id, u]))
+
+  const getMessageErrorText = (err: any): string => {
+    // Check for specific error messages from the server
+    const errorMsg = err?.message?.toLowerCase() || ""
+    const statusCode = err?.status || err?.statusCode
+
+    // Check for membership errors
+    if (errorMsg.includes("not a member") || errorMsg.includes("no es miembro")) {
+      return "You are not a member of this group"
+    }
+    if (errorMsg.includes("member")) {
+      return "You need to join this group first to send messages"
+    }
+
+    // Check for permission errors
+    if (statusCode === 403 || errorMsg.includes("forbidden") || errorMsg.includes("permission")) {
+      return "You don't have permission to send messages in this group"
+    }
+    if (errorMsg.includes("write") || errorMsg.includes("send")) {
+      return "You cannot send messages to this group"
+    }
+
+    // Check for group/user not found
+    if (statusCode === 404 || errorMsg.includes("not found")) {
+      return "This group or user no longer exists"
+    }
+
+    // Check for auth errors
+    if (statusCode === 401 || errorMsg.includes("unauthorized")) {
+      return "Your session has expired, please log in again"
+    }
+
+    // Default error message
+    return "Failed to send message"
+  }
 
   const fetchMessages = useCallback(async () => {
     if (!group) return
@@ -83,8 +120,10 @@ export function MessagePanel({
     try {
       await groupsApi.requestToJoin(group.id, `Requesting to join ${group.name}`)
       setHasRequestPending(true)
+      showToast("Join request sent", "success")
     } catch (err) {
       console.error("Failed to request join", err)
+      showToast("Failed to send join request", "error")
     } finally {
       setIsRequestingToJoin(false)
     }
@@ -103,8 +142,11 @@ export function MessagePanel({
       }
       const newMsg = await messagesApi.send(content, group.id, mediaId, mediaUrl, mediaMimeType)
       setMessages(prev => [...prev, newMsg])
+      showToast("Message sent", "success", 2000)
     } catch (err) {
       console.error("Failed to send message:", err)
+      const errorMsg = getMessageErrorText(err)
+      showToast(errorMsg, "error")
       throw err
     }
   }
