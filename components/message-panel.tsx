@@ -1,11 +1,11 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { Hash, Users } from "lucide-react"
+import { Hash, Users, LogIn } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { MessageItem } from "@/components/message-item"
 import { MessageInput } from "@/components/message-input"
-import { messagesApi, type Group, type Message, type Presence, type User } from "@/lib/api"
+import { messagesApi, groupsApi, type Group, type Message, type Presence, type User } from "@/lib/api"
 
 interface MessagePanelProps {
   group: Group
@@ -24,6 +24,9 @@ export function MessagePanel({
   const { user: currentUser } = useAuth()
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [isMember, setIsMember] = useState(false)
+  const [hasRequestPending, setHasRequestPending] = useState(false)
+  const [isRequestingToJoin, setIsRequestingToJoin] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
@@ -37,10 +40,25 @@ export function MessagePanel({
     } catch (e) { console.error("fetchMessages", e) }
   }, [group])
 
+  const checkMembershipAndRequests = useCallback(async () => {
+    if (!group || !currentUser) return
+    try {
+      const members = await groupsApi.getMembers(group.id)
+      const isMemberOf = members.some(m => m.userId === currentUser.id)
+      setIsMember(isMemberOf)
+
+      if (!isMemberOf && group.joinPolicy === "approval") {
+        const requests = await groupsApi.getJoinRequests(group.id)
+        const hasPending = requests.some(r => r.userId === currentUser.id && r.status === "pending")
+        setHasRequestPending(hasPending)
+      }
+    } catch (e) { console.error("checkMembership", e) }
+  }, [group, currentUser])
+
   useEffect(() => {
     setIsLoading(true)
     setMessages([])
-    fetchMessages().finally(() => setIsLoading(false))
+    Promise.all([fetchMessages(), checkMembershipAndRequests()]).finally(() => setIsLoading(false))
   }, [group.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -59,9 +77,36 @@ export function MessagePanel({
     }
   }
 
+  const handleRequestToJoin = async () => {
+    if (!currentUser) return
+    setIsRequestingToJoin(true)
+    try {
+      await groupsApi.requestToJoin(group.id, `Requesting to join ${group.name}`)
+      setHasRequestPending(true)
+    } catch (err) {
+      console.error("Failed to request join", err)
+    } finally {
+      setIsRequestingToJoin(false)
+    }
+  }
+
   const handleSend = async (content: string, mediaId?: string, mediaUrl?: string, mediaMimeType?: string) => {
-    const newMsg = await messagesApi.send(content, group.id, mediaId, mediaUrl, mediaMimeType)
-    setMessages(prev => [...prev, newMsg])
+    try {
+      // If group is public with open join policy, auto-join before sending
+      if (group.visibility === "public" && group.joinPolicy === "open") {
+        try {
+          await groupsApi.addMember(group.id, currentUser?.id!)
+        } catch (err) {
+          // Might already be a member, ignore error
+          console.debug("Auto-join failed (might already be member):", err)
+        }
+      }
+      const newMsg = await messagesApi.send(content, group.id, mediaId, mediaUrl, mediaMimeType)
+      setMessages(prev => [...prev, newMsg])
+    } catch (err) {
+      console.error("Failed to send message:", err)
+      throw err
+    }
   }
 
   const handleUpdate = async (id: string, content: string) => {
@@ -139,6 +184,29 @@ export function MessagePanel({
             ))}
           </span>
           {typingLabel}
+        </div>
+      )}
+
+      {!isMember && group.joinPolicy === "approval" && (
+        <div className="border-t border-border px-6 py-4 bg-muted/50">
+          {hasRequestPending ? (
+            <p className="text-sm text-muted-foreground text-center">✓ Request to join sent. Waiting for admin approval.</p>
+          ) : (
+            <button
+              onClick={handleRequestToJoin}
+              disabled={isRequestingToJoin}
+              className="w-full flex items-center justify-center gap-2 rounded-lg bg-slack-green py-2.5 px-4 text-white font-medium hover:bg-slack-green-hover focus:outline-none focus:ring-2 focus:ring-slack-green/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <LogIn className="h-4 w-4" />
+              {isRequestingToJoin ? "Sending request..." : "Request to join"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {!isMember && group.joinPolicy === "invite" && (
+        <div className="border-t border-border px-6 py-4 bg-muted/50">
+          <p className="text-sm text-muted-foreground text-center">You need an invitation from an admin to join this channel.</p>
         </div>
       )}
 

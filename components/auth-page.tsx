@@ -10,6 +10,7 @@ export function AuthPage() {
   const [password, setPassword] = useState("")
   const [username, setUsername] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [registrationSuccess, setRegistrationSuccess] = useState(false)
   const { login, register, error, clearError } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -21,6 +22,12 @@ export function AuthPage() {
         await login(email, password)
       } else {
         await register(username, email, password)
+        // Registration successful - switch to login mode
+        setRegistrationSuccess(true)
+        setIsLogin(true)
+        // Clear form fields except email
+        setPassword("")
+        setUsername("")
       }
     } catch {
       // Error is handled in the auth context
@@ -35,6 +42,7 @@ export function AuthPage() {
     setEmail("")
     setPassword("")
     setUsername("")
+    setRegistrationSuccess(false)
   }
 
   return (
@@ -95,6 +103,12 @@ export function AuthPage() {
                 : "Join your team and start collaborating"}
             </p>
           </div>
+
+          {registrationSuccess && (
+            <div className="mb-6 rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
+              ✓ Account created successfully! Please sign in with your credentials.
+            </div>
+          )}
 
           {error && (
             <div className="mb-6 rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">

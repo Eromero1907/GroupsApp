@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { X, UserPlus, UserMinus, Search, Hash, Shield, ChevronDown, Globe, Lock } from "lucide-react"
-import { groupsApi, type Group, type GroupMember, type User, type GroupSettings } from "@/lib/api"
+import { X, UserPlus, UserMinus, Search, Hash, Shield, ChevronDown, Globe, Lock, CheckCircle, XCircle } from "lucide-react"
+import { groupsApi, type Group, type GroupMember, type User, type GroupSettings, type JoinRequest } from "@/lib/api"
 import { useAuth } from "@/contexts/auth-context"
 
 interface ManageMembersModalProps {
@@ -12,11 +12,12 @@ interface ManageMembersModalProps {
   allUsers: User[]
 }
 
-type Tab = "members" | "add" | "settings"
+type Tab = "members" | "add" | "requests" | "settings"
 
 export function ManageMembersModal({ isOpen, onClose, group, allUsers }: ManageMembersModalProps) {
   const { user: currentUser } = useAuth()
   const [members, setMembers] = useState<GroupMember[]>([])
+  const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([])
   const [settings, setSettings] = useState<GroupSettings | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
@@ -36,12 +37,14 @@ export function ManageMembersModal({ isOpen, onClose, group, allUsers }: ManageM
 
   const fetchData = useCallback(async () => {
     try {
-      const [fetchedMembers, fetchedSettings] = await Promise.all([
+      const [fetchedMembers, fetchedSettings, fetchedRequests] = await Promise.all([
         groupsApi.getMembers(group.id),
         groupsApi.getSettings(group.id),
+        groupsApi.getJoinRequests(group.id),
       ])
       setMembers(fetchedMembers)
       setSettings(fetchedSettings)
+      setJoinRequests(fetchedRequests)
       setSettingsForm({
         visibility: fetchedSettings.visibility,
         joinPolicy: fetchedSettings.joinPolicy,
@@ -78,8 +81,26 @@ export function ManageMembersModal({ isOpen, onClose, group, allUsers }: ManageM
   const handleAddMember = async (userId: string) => {
     setActionInProgress(userId)
     try {
-      const result = await groupsApi.addMember(group.id, userId)
+      // Admin adds directly without respecting joinPolicy
+      if (isAdmin) {
+        await groupsApi.addMemberDirect(group.id, userId)
+      } else {
+        await groupsApi.addMember(group.id, userId)
+      }
       await fetchData()
+    } catch (e) { console.error(e) }
+    finally { setActionInProgress(null) }
+  }
+
+  const handleReviewRequest = async (requestId: string, approved: boolean) => {
+    setActionInProgress(requestId)
+    try {
+      await groupsApi.reviewJoinRequest(requestId, approved ? "approved" : "rejected")
+      if (approved) {
+        await fetchData()
+      } else {
+        setJoinRequests(prev => prev.filter(r => r.id !== requestId))
+      }
     } catch (e) { console.error(e) }
     finally { setActionInProgress(null) }
   }
@@ -134,7 +155,7 @@ export function ManageMembersModal({ isOpen, onClose, group, allUsers }: ManageM
 
         {/* Tabs */}
         <div className="flex border-b border-border flex-shrink-0">
-          {(["members", "add", ...(isAdmin ? ["settings"] : [])] as Tab[]).map(tab => (
+          {(["members", "add", ...(isAdmin && settings?.joinPolicy === "approval" ? ["requests"] : []), ...(isAdmin ? ["settings"] : [])] as Tab[]).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -144,13 +165,13 @@ export function ManageMembersModal({ isOpen, onClose, group, allUsers }: ManageM
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {tab === "members" ? `Members (${members.length})` : tab === "add" ? "Add people" : "Settings"}
+              {tab === "members" ? `Members (${members.length})` : tab === "add" ? "Add people" : tab === "requests" ? `Requests (${joinRequests.filter(r => r.status === "pending").length})` : "Settings"}
             </button>
           ))}
         </div>
 
         {/* Search (only for members/add tabs) */}
-        {activeTab !== "settings" && (
+        {(activeTab === "members" || activeTab === "add") && (
           <div className="px-6 py-3 border-b border-border flex-shrink-0">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -261,6 +282,49 @@ export function ManageMembersModal({ isOpen, onClose, group, allUsers }: ManageM
                 ))}
               </ul>
             )
+          ) : activeTab === "requests" ? (
+            <div className="p-4">
+              {joinRequests.filter(r => r.status === "pending").length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No pending requests</p>
+              ) : (
+                <div className="space-y-2">
+                  {joinRequests.filter(r => r.status === "pending").map(req => {
+                    const user = allUsers.find(u => u.id === req.userId)
+                    return (
+                      <div key={req.id} className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors">
+                        <div className="flex items-center gap-3 flex-1">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-foreground font-medium text-xs">
+                            {user?.username.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-foreground">{user?.username}</p>
+                            {req.message && <p className="text-xs text-muted-foreground mt-0.5">{req.message}</p>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleReviewRequest(req.id, true)}
+                            disabled={actionInProgress === req.id}
+                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50"
+                            title="Approve"
+                          >
+                            <CheckCircle className="h-5 w-5" />
+                          </button>
+                          <button
+                            onClick={() => handleReviewRequest(req.id, false)}
+                            disabled={actionInProgress === req.id}
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                            title="Reject"
+                          >
+                            <XCircle className="h-5 w-5" />
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           ) : (
             /* Settings tab */
             <div className="space-y-5">

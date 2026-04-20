@@ -87,15 +87,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true)
     setError(null)
     try {
-      const response = await authApi.register(username, email, password)
-      handleAuthSuccess(response)
+      // Register creates the account but does NOT auto-login
+      // User must go to login page to authenticate
+      await authApi.register(username, email, password)
+      // Success - the component will handle switching to login mode
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "An unexpected error occurred")
       throw err
     } finally {
       setIsLoading(false)
     }
-  }, [handleAuthSuccess])
+  }, [])
 
   const logout = useCallback(() => {
     setToken(null)

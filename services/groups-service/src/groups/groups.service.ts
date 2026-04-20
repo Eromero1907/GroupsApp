@@ -93,7 +93,10 @@ export class GroupsService {
     // Los grupos privados solo son visibles para sus miembros
     if (!requesterId) return groups.filter(g => g.visibility === GroupVisibility.PUBLIC);
     const memberGroupIds = new Set(
-      (await this.groupMembersRepository.find({ where: { userId: requesterId } }))
+      (await this.groupMembersRepository.find({ 
+        where: { userId: requesterId },
+        relations: ['group']
+      }))
         .map(m => m.group?.id),
     );
     return groups.filter(

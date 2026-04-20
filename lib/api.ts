@@ -313,6 +313,13 @@ export const groupsApi = {
     return handleResponse(res)
   },
 
+  async addMemberDirect(groupId: string, userId: string): Promise<GroupMember> {
+    const res = await fetch(`${API_BASE_URL}/groups/${groupId}/members/${userId}/direct`, {
+      method: "POST", headers: getAuthHeaders(),
+    })
+    return handleResponse<GroupMember>(res)
+  },
+
   async removeMember(groupId: string, userId: string): Promise<void> {
     const res = await fetch(`${API_BASE_URL}/groups/${groupId}/members/${userId}`, {
       method: "DELETE", headers: getAuthHeaders(),
