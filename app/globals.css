@@ -1,0 +1,123 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Slack-inspired color palette */
+    --background: 0 0% 100%;
+    --foreground: 240 3% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 3% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 3% 11%;
+
+    --primary: 160 100% 24%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 240 2% 38%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 0 0% 91%;
+    --muted-foreground: 240 2% 38%;
+
+    --accent: 207 84% 35%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 345 82% 49%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 91%;
+    --input: 0 0% 91%;
+    --ring: 160 100% 24%;
+
+    --radius: 0.5rem;
+
+    /* Slack-specific colors */
+    --sidebar-bg: 300 61% 16%;
+    --sidebar-text: 300 10% 79%;
+    --sidebar-active: 207 84% 35%;
+    --sidebar-hover: 299 62% 13%;
+    --online: 149 56% 44%;
+    --away: 41 83% 55%;
+    --dnd: 345 82% 49%;
+    --offline: 240 2% 38%;
+  }
+
+  .dark {
+    --background: 240 3% 11%;
+    --foreground: 0 0% 100%;
+
+    --card: 240 3% 15%;
+    --card-foreground: 0 0% 100%;
+
+    --popover: 240 3% 15%;
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 160 100% 24%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 240 2% 38%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 240 3% 20%;
+    --muted-foreground: 240 2% 60%;
+
+    --accent: 207 84% 35%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 345 82% 49%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 240 3% 20%;
+    --input: 240 3% 20%;
+    --ring: 160 100% 24%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom scrollbar for sidebar */
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(207, 195, 207, 0.3);
+  border-radius: 3px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(207, 195, 207, 0.5);
+}
+
+/* Messages scrollbar */
+.messages-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.messages-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.messages-scrollbar::-webkit-scrollbar-thumb {
+  background: #e8e8e8;
+  border-radius: 4px;
+}
+
+.messages-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #d0d0d0;
+}

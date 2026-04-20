@@ -1,0 +1,37 @@
+{
+  "dashboard": {
+    "title": "GroupsApp Microservices",
+    "uid": "groupsapp-main",
+    "panels": [
+      {
+        "title": "Services Health",
+        "type": "stat",
+        "gridPos": { "x": 0, "y": 0, "w": 12, "h": 4 },
+        "targets": [{
+          "expr": "up{job=\"groupsapp-services\"}",
+          "legendFormat": "{{instance}}"
+        }]
+      },
+      {
+        "title": "HTTP Requests per Second",
+        "type": "graph",
+        "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+        "targets": [{
+          "expr": "rate(http_requests_total[1m])",
+          "legendFormat": "{{instance}} {{method}} {{route}}"
+        }]
+      },
+      {
+        "title": "Kafka Messages (Loki)",
+        "type": "logs",
+        "gridPos": { "x": 0, "y": 12, "w": 24, "h": 8 },
+        "targets": [{
+          "expr": "{container=~\"groupsapp-.*\"} |= \"Evento publicado\"",
+          "legendFormat": ""
+        }]
+      }
+    ],
+    "schemaVersion": 30,
+    "version": 1
+  }
+}

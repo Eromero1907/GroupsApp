@@ -1,0 +1,547 @@
+# =============================================================
+# GroupsApp - Docker Compose (Desarrollo Local)
+# Infraestructura: PostgreSQL x6 + Redis + Kafka + Zookeeper
+#                  + API Gateway + 6 microservicios
+# Uso: docker compose up --build
+# =============================================================
+
+services:
+
+  # ─────────────────────────────────────────
+  # CONSUL — Service discovery y coordinación (RNF4)
+  # UI disponible en http://localhost:8500
+  # ─────────────────────────────────────────
+
+  consul:
+    image: hashicorp/consul:1.17
+    container_name: groupsapp-consul
+    command: >
+      consul agent -dev
+      -ui
+      -client=0.0.0.0
+      -bind=0.0.0.0
+      -datacenter=groupsapp-dc
+      -node=groupsapp-node
+    ports:
+      - "8500:8500"
+      - "8600:8600/udp"
+    networks:
+      - groupsapp-network
+    healthcheck:
+      test: ["CMD", "consul", "members"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────
+  # INFRAESTRUCTURA: Zookeeper + Kafka
+  # ─────────────────────────────────────────
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: groupsapp-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - groupsapp-network
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | timeout 2 bash -c 'cat < /dev/null > /dev/tcp/localhost/2181' 2>/dev/null && echo ok || exit 0"]
+      interval: 20s
+      timeout: 15s
+      retries: 5
+      start_period: 45s
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: groupsapp-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - groupsapp-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: groupsapp-kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: groupsapp-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    networks:
+      - groupsapp-network
+
+  # ─────────────────────────────────────────
+  # REDIS — presencia en tiempo real (RNF3)
+  # TTL automático si el socket se desconecta sin mandar "offline"
+  # ─────────────────────────────────────────
+
+  redis:
+    image: redis:alpine
+    container_name: groupsapp-redis
+    command: redis-server --save 60 1 --loglevel warning
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - groupsapp-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────
+  # BASES DE DATOS: 1 PostgreSQL por servicio
+  # ─────────────────────────────────────────
+
+  postgres-auth:
+    image: postgres:16-alpine
+    container_name: groupsapp-postgres-auth
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-auth-data:/var/lib/postgresql/data
+    networks:
+      - groupsapp-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d auth_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-users:
+    image: postgres:16-alpine
+    container_name: groupsapp-postgres-users
+    environment:
+      POSTGRES_DB: users_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres-users-data:/var/lib/postgresql/data
+    networks:
+      - groupsapp-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d users_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-groups:
+    image: postgres:16-alpine
+    container_name: groupsapp-postgres-groups
+    environment:
+      POSTGRES_DB: groups_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres-groups-data:/var/lib/postgresql/data
+    networks:
+      - groupsapp-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d groups_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Messaging BD — primary (acepta escrituras)
+  postgres-messaging:
+    image: postgres:16-alpine
+    container_name: groupsapp-postgres-messaging-primary
+    environment:
+      POSTGRES_DB: messaging_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    command: ["postgres", "-c", "wal_level=logical", "-c", "max_replication_slots=4", "-c", "max_wal_senders=4"]
+    ports:
+      - "5436:5432"
+    volumes:
+      - postgres-messaging-data:/var/lib/postgresql/data
+    networks:
+      - groupsapp-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d messaging_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Messaging BD replica - configure separately with proper pg_hba.conf
+  # postgres-messaging-replica: disabled - requires manual pg_hba.conf setup
+
+  postgres-media:
+    image: postgres:16-alpine
+    container_name: groupsapp-postgres-media
+    environment:
+      POSTGRES_DB: media_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5437:5432"
+    volumes:
+      - postgres-media-data:/var/lib/postgresql/data
+    networks:
+      - groupsapp-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d media_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-presence:
+    image: postgres:16-alpine
+    container_name: groupsapp-postgres-presence
+    environment:
+      POSTGRES_DB: presence_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5438:5432"
+    volumes:
+      - postgres-presence-data:/var/lib/postgresql/data
+    networks:
+      - groupsapp-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d presence_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────
+  # MICROSERVICIOS
+  # ─────────────────────────────────────────
+
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: groupsapp-auth
+    depends_on:
+      postgres-auth:
+        condition: service_healthy
+    environment:
+      PORT: 3001
+      DB_HOST: postgres-auth
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: password
+      DB_NAME: auth_db
+      JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-key-cambiar-en-prod}
+      NODE_ENV: development
+      KAFKA_BROKER: kafka:29092
+      CONSUL_URL: http://consul:8500
+    ports:
+      - "3001:3001"
+    networks:
+      - groupsapp-network
+    restart: unless-stopped
+
+  users-service:
+    build:
+      context: ./services/users-service
+      dockerfile: Dockerfile
+    container_name: groupsapp-users
+    depends_on:
+      postgres-users:
+        condition: service_healthy
+    environment:
+      PORT: 3002
+      GRPC_PORT: 50052
+      PROTO_PATH: /proto/users.proto
+      DB_HOST: postgres-users
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: password
+      DB_NAME: users_db
+      JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-key-cambiar-en-prod}
+      NODE_ENV: development
+      KAFKA_BROKER: kafka:29092
+      AUTH_SERVICE_URL: http://auth-service:3001
+    volumes:
+      - ./proto:/proto:ro
+    ports:
+      - "3002:3002"
+      - "50052:50052"
+    networks:
+      - groupsapp-network
+    restart: unless-stopped
+
+  groups-service:
+    build:
+      context: ./services/groups-service
+      dockerfile: Dockerfile
+    container_name: groupsapp-groups
+    depends_on:
+      postgres-groups:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      PORT: 3003
+      GRPC_PORT: 50053
+      PROTO_PATH: /proto/groups.proto
+      DB_HOST: postgres-groups
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: password
+      DB_NAME: groups_db
+      JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-key-cambiar-en-prod}
+      NODE_ENV: development
+      KAFKA_BROKER: kafka:29092
+      USERS_SERVICE_URL: http://users-service:3002
+      USERS_GRPC_URL: users-service:50052
+      AUTH_SERVICE_URL: http://auth-service:3001
+      CONSUL_URL: http://consul:8500
+    volumes:
+      - ./proto:/proto:ro
+    ports:
+      - "3003:3003"
+      - "50053:50053"
+    networks:
+      - groupsapp-network
+    restart: unless-stopped
+
+  messaging-service:
+    build:
+      context: ./services/messaging-service
+      dockerfile: Dockerfile
+    container_name: groupsapp-messaging
+    depends_on:
+      postgres-messaging:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      PORT: 3005
+      GRPC_PORT: 50054
+      PROTO_PATH: /proto/messaging.proto
+      DB_HOST: postgres-messaging
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: password
+      DB_NAME: messaging_db
+      JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-key-cambiar-en-prod}
+      NODE_ENV: development
+      KAFKA_BROKER: kafka:29092
+      USERS_SERVICE_URL: http://users-service:3002
+      GROUPS_SERVICE_URL: http://groups-service:3003
+      GROUPS_GRPC_URL: groups-service:50053
+      AUTH_SERVICE_URL: http://auth-service:3001
+      CONSUL_URL: http://consul:8500
+    volumes:
+      - ./proto:/proto:ro
+    ports:
+      - "3005:3005"
+      - "50054:50054"
+    networks:
+      - groupsapp-network
+    restart: unless-stopped
+
+  media-service:
+    build:
+      context: ./services/media-service
+      dockerfile: Dockerfile
+    container_name: groupsapp-media
+    depends_on:
+      postgres-media:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      PORT: 3004
+      DB_HOST: postgres-media
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: password
+      DB_NAME: media_db
+      JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-key-cambiar-en-prod}
+      NODE_ENV: development
+      KAFKA_BROKER: kafka:29092
+      USERS_SERVICE_URL: http://users-service:3002
+      AUTH_SERVICE_URL: http://auth-service:3001
+      # Variables S3 — dejar vacías para modo local (sin AWS real)
+      S3_BUCKET: ${S3_BUCKET:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      STORAGE_BASE_URL: https://media.groupsapp.local/files
+      CONSUL_URL: http://consul:8500
+    ports:
+      - "3004:3004"
+    networks:
+      - groupsapp-network
+    restart: unless-stopped
+
+  presence-service:
+    build:
+      context: ./services/presence-service
+      dockerfile: Dockerfile
+    container_name: groupsapp-presence
+    depends_on:
+      postgres-presence:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      PORT: 3006
+      DB_HOST: postgres-presence
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: password
+      DB_NAME: presence_db
+      REDIS_URL: redis://redis:6379
+      CONSUL_URL: http://consul:8500
+      JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-key-cambiar-en-prod}
+      NODE_ENV: development
+      KAFKA_BROKER: kafka:29092
+    ports:
+      - "3006:3006"
+    networks:
+      - groupsapp-network
+    restart: unless-stopped
+
+
+  # ─────────────────────────────────────────
+  # OBSERVABILIDAD: Prometheus + Grafana + Loki (RNF8)
+  # Prometheus: http://localhost:9090
+  # Grafana:    http://localhost:3100 (admin/admin)
+  # Loki:       http://localhost:3200
+  # ─────────────────────────────────────────
+
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: groupsapp-prometheus
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    networks:
+      - groupsapp-network
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: groupsapp-loki
+    user: "0"
+    volumes:
+      - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3200:3100"
+    networks:
+      - groupsapp-network
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: groupsapp-promtail
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - groupsapp-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: groupsapp-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    ports:
+      - "3100:3000"
+    depends_on:
+      - prometheus
+      - loki
+    networks:
+      - groupsapp-network
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────
+  # API GATEWAY
+  # ─────────────────────────────────────────
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: groupsapp-gateway
+    depends_on:
+      - auth-service
+      - users-service
+      - groups-service
+      - messaging-service
+      - media-service
+      - presence-service
+    environment:
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-key-cambiar-en-prod}
+      AUTH_SERVICE_URL: http://auth-service:3001
+      USERS_SERVICE_URL: http://users-service:3002
+      GROUPS_SERVICE_URL: http://groups-service:3003
+      MESSAGING_SERVICE_URL: http://messaging-service:3005
+      MEDIA_SERVICE_URL: http://media-service:3004
+      PRESENCE_SERVICE_URL: http://presence-service:3006
+      CONSUL_URL: http://consul:8500
+    ports:
+      - "4000:3000"
+    networks:
+      - groupsapp-network
+    restart: unless-stopped
+
+volumes:
+  prometheus-data:
+  loki-data:
+  grafana-data:
+  postgres-auth-data:
+  postgres-users-data:
+  postgres-groups-data:
+  postgres-messaging-data:
+  postgres-messaging-replica-data:
+  postgres-media-data:
+  postgres-presence-data:
+  redis-data:
+
+networks:
+  groupsapp-network:
+    driver: bridge

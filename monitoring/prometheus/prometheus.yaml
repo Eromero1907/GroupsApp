@@ -1,0 +1,26 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'groupsapp-services'
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - 'auth-service:3001'
+          - 'users-service:3002'
+          - 'groups-service:3003'
+          - 'media-service:3004'
+          - 'messaging-service:3005'
+          - 'presence-service:3006'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+
+  - job_name: 'kafka'
+    static_configs:
+      - targets: ['kafka:9092']

@@ -1,0 +1,29 @@
+syntax = "proto3";
+package users;
+
+service UsersService {
+  rpc GetUser (GetUserRequest) returns (UserResponse);
+  rpc GetUsers (GetUsersRequest) returns (UsersResponse);
+  rpc CheckContacts (CheckContactsRequest) returns (CheckContactsResponse);
+}
+
+message GetUserRequest  { string id = 1; }
+message GetUsersRequest { repeated string ids = 1; }
+
+message CheckContactsRequest {
+  string user_a = 1;
+  string user_b = 2;
+}
+
+message CheckContactsResponse { bool are_contacts = 1; }
+
+message UserResponse {
+  string id          = 1;
+  string username    = 2;
+  string email       = 3;
+  string displayName = 4;
+  string avatar      = 5;
+  bool   found       = 6;
+}
+
+message UsersResponse { repeated UserResponse users = 1; }

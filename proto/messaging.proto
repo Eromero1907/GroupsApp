@@ -1,0 +1,31 @@
+syntax = "proto3";
+package messaging;
+
+service MessagingService {
+  rpc GetGroupMessages (GetGroupMessagesRequest) returns (MessagesResponse);
+  rpc GetMessage       (GetMessageRequest)       returns (MessageResponse);
+  rpc StreamGroupMessages (GetGroupMessagesRequest) returns (stream MessageResponse);
+}
+
+message GetGroupMessagesRequest {
+  string group_id = 1;
+  int32  limit    = 2;
+  int32  offset   = 3;
+}
+
+message GetMessageRequest { string id = 1; }
+
+message MessageResponse {
+  string id         = 1;
+  string content    = 2;
+  string sender_id  = 3;
+  string group_id   = 4;
+  string created_at = 5;
+  bool   is_edited  = 6;
+  bool   found      = 7;
+}
+
+message MessagesResponse {
+  repeated MessageResponse messages = 1;
+  int32 total = 2;
+}

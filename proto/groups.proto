@@ -1,0 +1,38 @@
+syntax = "proto3";
+package groups;
+
+service GroupsService {
+  rpc CheckMembership (CheckMembershipRequest) returns (CheckMembershipResponse);
+  rpc GetGroup        (GetGroupRequest)         returns (GroupResponse);
+  rpc GetGroupMembers (GetGroupRequest)         returns (GroupMembersResponse);
+}
+
+message CheckMembershipRequest {
+  string group_id = 1;
+  string user_id  = 2;
+}
+
+message CheckMembershipResponse {
+  bool is_member = 1;
+  bool is_admin  = 2;
+}
+
+message GetGroupRequest { string group_id = 1; }
+
+message GroupResponse {
+  string id          = 1;
+  string name        = 2;
+  string description = 3;
+  string created_by  = 4;
+  string visibility  = 5;
+  string join_policy = 6;
+  bool   found       = 7;
+}
+
+message MemberResponse {
+  string user_id   = 1;
+  string role      = 2;
+  string joined_at = 3;
+}
+
+message GroupMembersResponse { repeated MemberResponse members = 1; }
