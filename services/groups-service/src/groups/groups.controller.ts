@@ -109,6 +109,14 @@ export class GroupsController {
     return this.groupsService.promoteToAdmin(groupId, userId);
   }
 
+  @Put(':groupId/members/:userId/demote')
+  async demoteFromAdmin(
+    @Param('groupId') groupId: string,
+    @Param('userId') userId: string,
+  ) {
+    return this.groupsService.demoteFromAdmin(groupId, userId);
+  }
+
   // ── Solicitudes de membresía ───────────────────────────────────
 
   @Get(':groupId/join-requests')

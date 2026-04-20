@@ -70,6 +70,11 @@ export class GroupsGatewayController {
     return this.http.put(`${GROUPS_URL()}/groups/${groupId}/members/${userId}/promote`, {});
   }
 
+  @Put(':groupId/members/:userId/demote')
+  async demoteFromAdmin(@Param('groupId') groupId: string, @Param('userId') userId: string) {
+    return this.http.put(`${GROUPS_URL()}/groups/${groupId}/members/${userId}/demote`, {});
+  }
+
   // ── Solicitudes de membresía ───────────────────────────────────
 
   @Get(':groupId/join-requests')

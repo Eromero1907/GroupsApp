@@ -54,6 +54,13 @@ export class UsersGatewayController {
     return this.http.post(`${USERS_URL()}/contacts/${req.user.sub}/accept/${contactId}`, {});
   }
 
+  /** Rechazar solicitud */
+  @Post('contacts/reject/:contactId')
+  @HttpCode(HttpStatus.OK)
+  async rejectContact(@Param('contactId') contactId: string, @Request() req: any) {
+    return this.http.post(`${USERS_URL()}/contacts/${req.user.sub}/reject/${contactId}`, {});
+  }
+
   /** Actualizar (bloquear / alias) */
   @Put('contacts/:contactId')
   async updateContact(@Param('contactId') contactId: string, @Body() body: any, @Request() req: any) {

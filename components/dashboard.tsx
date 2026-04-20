@@ -9,7 +9,7 @@ import { ContactsPanel } from "@/components/contacts-panel"
 import { CreateGroupModal } from "@/components/create-group-modal"
 import { ManageMembersModal } from "@/components/manage-members-modal"
 import { usePresenceSocket } from "@/hooks/usePresenceSocket"
-import { groupsApi, presenceApi, usersApi, dmApi, type Group, type Presence, type User } from "@/lib/api"
+import { groupsApi, presenceApi, usersApi, dmApi, contactsApi, type Group, type Presence, type User } from "@/lib/api"
 
 type View =
   | { type: "group"; group: Group }
@@ -29,6 +29,7 @@ export function Dashboard() {
   const [typingUsers, setTypingUsers] = useState<Map<string, Set<string>>>(new Map())
   const [dmUnread, setDmUnread] = useState<Map<string, number>>(new Map())
   const [dmPartners, setDmPartners] = useState<Set<string>>(new Set())
+  const [contacts, setContacts] = useState<Set<string>>(new Set())
 
   const { joinRoom, leaveRoom, startTyping, stopTyping } = usePresenceSocket({
     userId: user?.id || null,
@@ -89,10 +90,18 @@ export function Dashboard() {
     } catch (e) { console.error(e) }
   }, [])
 
+  const fetchContacts = useCallback(async () => {
+    try {
+      const myContacts = await contactsApi.getMyContacts('accepted')
+      const contactIds = new Set(myContacts.map(c => c.contactId))
+      setContacts(contactIds)
+    } catch (e) { console.error(e) }
+  }, [])
+
   useEffect(() => {
     const init = async () => {
       setIsLoading(true)
-      await Promise.all([fetchGroups(), fetchPresence(), fetchUsers(), fetchDmConversations()])
+      await Promise.all([fetchGroups(), fetchPresence(), fetchUsers(), fetchDmConversations(), fetchContacts()])
       setIsLoading(false)
     }
     init()
@@ -196,6 +205,7 @@ export function Dashboard() {
           onClose={() => setIsManageMembersOpen(false)}
           group={selectedGroup}
           allUsers={users}
+          userContacts={contacts}
         />
       )}
     </div>

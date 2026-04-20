@@ -235,6 +235,14 @@ export const contactsApi = {
     return handleResponse(res)
   },
 
+  async reject(contactId: string): Promise<{ message: string }> {
+    const res = await fetch(`${API_BASE_URL}/users/contacts/reject/${contactId}`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+    })
+    return handleResponse(res)
+  },
+
   async update(contactId: string, data: { status?: ContactStatus; nickname?: string }): Promise<Contact> {
     const res = await fetch(`${API_BASE_URL}/users/contacts/${contactId}`, {
       method: "PUT",
@@ -329,6 +337,13 @@ export const groupsApi = {
 
   async promoteToAdmin(groupId: string, userId: string): Promise<GroupMember> {
     const res = await fetch(`${API_BASE_URL}/groups/${groupId}/members/${userId}/promote`, {
+      method: "PUT", headers: getAuthHeaders(),
+    })
+    return handleResponse<GroupMember>(res)
+  },
+
+  async demoteFromAdmin(groupId: string, userId: string): Promise<GroupMember> {
+    const res = await fetch(`${API_BASE_URL}/groups/${groupId}/members/${userId}/demote`, {
       method: "PUT", headers: getAuthHeaders(),
     })
     return handleResponse<GroupMember>(res)

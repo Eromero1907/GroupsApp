@@ -70,6 +70,20 @@ export class ContactsService {
     return { message: 'Contacto aceptado', ownerId, contactId };
   }
 
+  /** Rechazar solicitud de contacto entrante */
+  async rejectContact(ownerId: string, contactId: string) {
+    // La solicitud viene del contactId hacia mí (ownerId)
+    const request = await this.contactsRepository.findOne({
+      where: { ownerId: contactId, contactId: ownerId, status: ContactStatus.PENDING },
+    });
+    if (!request) throw new NotFoundException('Solicitud de contacto no encontrada');
+
+    // Eliminar la solicitud pendiente
+    await this.contactsRepository.remove(request);
+    this.logger.log(`Solicitud de contacto rechazada: ${contactId} → ${ownerId}`);
+    return { message: 'Solicitud rechazada' };
+  }
+
   /** Listar mis contactos (aceptados) */
   async getContacts(ownerId: string, status?: ContactStatus) {
     const where: any = { ownerId };
@@ -94,11 +108,19 @@ export class ContactsService {
     return this.contactsRepository.save(contact);
   }
 
-  /** Eliminar un contacto */
+  /** Eliminar un contacto (bidireccional - elimina ambas relaciones) */
   async removeContact(ownerId: string, contactId: string) {
     const contact = await this.contactsRepository.findOne({ where: { ownerId, contactId } });
     if (!contact) throw new NotFoundException('Contacto no encontrado');
     await this.contactsRepository.remove(contact);
+
+    // Eliminar también la relación recíproca
+    const reciprocal = await this.contactsRepository.findOne({ where: { ownerId: contactId, contactId: ownerId } });
+    if (reciprocal) {
+      await this.contactsRepository.remove(reciprocal);
+    }
+
+    this.logger.log(`Contacto eliminado bidireccional: ${ownerId} ↔ ${contactId}`);
     return { message: 'Contacto eliminado' };
   }
 

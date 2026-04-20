@@ -42,6 +42,16 @@ export class ContactsController {
     return this.contactsService.acceptContact(ownerId, contactId);
   }
 
+  /** Rechazar solicitud de contacto */
+  @Post(':ownerId/reject/:contactId')
+  @HttpCode(HttpStatus.OK)
+  async rejectContact(
+    @Param('ownerId') ownerId: string,
+    @Param('contactId') contactId: string,
+  ) {
+    return this.contactsService.rejectContact(ownerId, contactId);
+  }
+
   /** Actualizar contacto (estado / nickname) */
   @Put(':ownerId/:contactId')
   async updateContact(

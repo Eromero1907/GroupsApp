@@ -243,6 +243,22 @@ export class GroupsService {
     return this.groupMembersRepository.save(member);
   }
 
+  async demoteFromAdmin(groupId: string, userId: string) {
+    const group = await this.findById(groupId);
+    
+    // Verificar que el usuario no es el creador del grupo
+    if (userId === group.createdBy) {
+      throw new ForbiddenException('No se puede remover los permisos de administrador del creador del grupo');
+    }
+
+    const member = await this.groupMembersRepository.findOne({ where: { group: { id: groupId }, userId } });
+    if (!member) throw new NotFoundException('Miembro no encontrado');
+    if (member.role !== GroupRole.ADMIN) throw new BadRequestException('Este usuario no es administrador');
+    
+    member.role = GroupRole.MEMBER;
+    return this.groupMembersRepository.save(member);
+  }
+
   // ─────────────────────────────────────────
   // Solicitudes de membresía (Join Requests)
   // ─────────────────────────────────────────

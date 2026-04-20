@@ -82,6 +82,15 @@ export function ContactsPanel({ currentUserId, allUsers, onStartDm }: ContactsPa
     finally { setActionInProgress(null) }
   }
 
+  const handleReject = async (senderId: string) => {
+    setActionInProgress(`reject-${senderId}`)
+    try {
+      await contactsApi.reject(senderId)
+      await fetchContacts()
+    } catch (e) { console.error(e) }
+    finally { setActionInProgress(null) }
+  }
+
   const handleBlock = async (contactId: string) => {
     setActionInProgress(`block-${contactId}`)
     try {
@@ -264,7 +273,7 @@ export function ContactsPanel({ currentUserId, allUsers, onStartDm }: ContactsPa
                         <UserCheck className="h-3.5 w-3.5" /> Accept
                       </button>
                       <button
-                        onClick={() => handleBlock(senderId)}
+                        onClick={() => handleReject(senderId)}
                         disabled={!!actionInProgress}
                         className="px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground border border-border rounded-lg transition-colors"
                       >

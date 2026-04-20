@@ -10,11 +10,12 @@ interface ManageMembersModalProps {
   onClose: () => void
   group: Group
   allUsers: User[]
+  userContacts: Set<string>
 }
 
 type Tab = "members" | "add" | "requests" | "settings"
 
-export function ManageMembersModal({ isOpen, onClose, group, allUsers }: ManageMembersModalProps) {
+export function ManageMembersModal({ isOpen, onClose, group, allUsers, userContacts }: ManageMembersModalProps) {
   const { user: currentUser } = useAuth()
   const [members, setMembers] = useState<GroupMember[]>([])
   const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([])
@@ -67,7 +68,7 @@ export function ManageMembersModal({ isOpen, onClose, group, allUsers }: ManageM
   }, [isOpen])
 
   const memberUserIds = new Set(members.map(m => m.userId))
-  const nonMembers = allUsers.filter(u => !memberUserIds.has(u.id))
+  const nonMembers = allUsers.filter(u => !memberUserIds.has(u.id) && userContacts.has(u.id))
 
   const filteredMembers = members.filter(m => {
     const user = allUsers.find(u => u.id === m.userId)
@@ -118,6 +119,15 @@ export function ManageMembersModal({ isOpen, onClose, group, allUsers }: ManageM
     setActionInProgress(`promote-${userId}`)
     try {
       await groupsApi.promoteToAdmin(group.id, userId)
+      await fetchData()
+    } catch (e) { console.error(e) }
+    finally { setActionInProgress(null) }
+  }
+
+  const handleDemoteFromAdmin = async (userId: string) => {
+    setActionInProgress(`demote-${userId}`)
+    try {
+      await groupsApi.demoteFromAdmin(group.id, userId)
       await fetchData()
     } catch (e) { console.error(e) }
     finally { setActionInProgress(null) }
@@ -219,9 +229,21 @@ export function ManageMembersModal({ isOpen, onClose, group, allUsers }: ManageM
                       </div>
                       <div className="flex items-center gap-2">
                         {member.role === "admin" ? (
-                          <span className="flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
-                            <Shield className="h-3 w-3" /> Admin
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+                              <Shield className="h-3 w-3" /> Admin
+                            </span>
+                            {isAdmin && !isSelf && user.id !== group.createdBy && (
+                              <button
+                                onClick={() => handleDemoteFromAdmin(user.id)}
+                                disabled={actionInProgress === `demote-${user.id}`}
+                                className="text-xs text-muted-foreground hover:text-destructive transition-colors px-2 py-1 rounded hover:bg-destructive/10"
+                                title="Remove admin"
+                              >
+                                <Shield className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
                         ) : isAdmin && !isSelf ? (
                           <button
                             onClick={() => handlePromote(user.id)}
