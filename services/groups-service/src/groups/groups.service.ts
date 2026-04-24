@@ -131,9 +131,20 @@ export class GroupsService {
     return this.groupsRepository.save(group);
   }
 
-  async delete(id: string) {
-    const group = await this.findById(id);
-    await this.groupsRepository.remove(group);
+  async delete(id: string, requestedBy: string) {
+    if (!requestedBy) throw new BadRequestException('requestedBy es requerido');
+    await this.findById(id);
+    const isAdminUser = await this.isAdmin(id, requestedBy);
+    if (!isAdminUser) {
+      throw new ForbiddenException('Solo un administrador puede eliminar el grupo');
+    }
+    await this.groupsRepository.delete(id);
+    await this.kafkaService.emitGroupDeleted({
+      groupId: id,
+      deletedBy: requestedBy,
+      timestamp: new Date().toISOString(),
+    });
+    this.logger.log(`Grupo eliminado: ${id} por ${requestedBy}`);
     return { message: `Grupo ${id} eliminado correctamente` };
   }
 

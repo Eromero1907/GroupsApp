@@ -36,7 +36,10 @@ export class GroupsGatewayController {
   }
 
   @Delete(':id')
-  async delete(@Param('id') id: string) { return this.http.delete(`${GROUPS_URL()}/groups/${id}`); }
+  async delete(@Param('id') id: string, @Request() req: any) {
+    const q = encodeURIComponent(req.user.sub);
+    return this.http.delete(`${GROUPS_URL()}/groups/${id}?requestedBy=${q}`);
+  }
 
   // ── Miembros ───────────────────────────────────────────────────
 

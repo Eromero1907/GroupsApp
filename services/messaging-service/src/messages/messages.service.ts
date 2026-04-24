@@ -2,7 +2,7 @@ import {
   Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Message } from './entities/message.entity';
 import { MessageStatus, MessageStatusEnum } from './entities/message-status.entity';
 import { KafkaService } from '../kafka/kafka.service';
@@ -108,6 +108,21 @@ export class MessagesService {
     if (message.senderId !== senderId) throw new ForbiddenException('Solo puedes eliminar tus propios mensajes');
     await this.messagesRepository.remove(message);
     return { message: `Mensaje ${id} eliminado` };
+  }
+
+  /** Invocado al recibir group.deleted desde Kafka (grupo borrado en groups-service). */
+  async deleteAllMessagesForGroup(groupId: string) {
+    const rows = await this.messagesRepository.find({ where: { groupId }, select: ['id'] });
+    const ids = rows.map((m) => m.id);
+    if (ids.length === 0) {
+      this.logger.log(`Sin mensajes que borrar para grupo ${groupId}`);
+      return { deletedMessages: 0 };
+    }
+    await this.messageStatusRepository.delete({ messageId: In(ids) });
+    const result = await this.messagesRepository.delete({ groupId });
+    const n = result.affected ?? ids.length;
+    this.logger.log(`Grupo ${groupId}: eliminados ${n} mensajes y sus estados`);
+    return { deletedMessages: n };
   }
 
   async getMessageStatus(messageId: string) {

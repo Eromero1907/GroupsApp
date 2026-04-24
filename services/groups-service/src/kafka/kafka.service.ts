@@ -38,6 +38,10 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
     groupId: string; userId: string; timestamp: string;
   }) { await this.emit('group.member.removed', payload); }
 
+  async emitGroupDeleted(payload: {
+    groupId: string; deletedBy: string; timestamp: string;
+  }) { await this.emit('group.deleted', payload); }
+
   private async emit(topic: string, payload: any) {
     try {
       await this.producer.send({

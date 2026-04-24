@@ -1,12 +1,12 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
-import { Kafka, Producer, Consumer } from 'kafkajs';
+import { Kafka, Producer } from 'kafkajs';
 
+/** Solo producer; el consumer de eventos de grupo vive en GroupEventsConsumerService. */
 @Injectable()
 export class KafkaService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(KafkaService.name);
   private kafka: Kafka;
   private producer: Producer;
-  private consumer: Consumer;
 
   constructor() {
     this.kafka = new Kafka({
@@ -15,27 +15,15 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
       retry: { initialRetryTime: 300, retries: 10 },
     });
     this.producer = this.kafka.producer();
-    this.consumer = this.kafka.consumer({ groupId: 'messaging-service-group' });
   }
 
   async onModuleInit() {
     await this.producer.connect();
     this.logger.log('✅ Kafka Producer conectado');
-
-    await this.consumer.connect();
-    await this.consumer.subscribe({ topics: ['group.member.removed'], fromBeginning: false });
-    await this.consumer.run({
-      eachMessage: async ({ topic, message }) => {
-        const payload = JSON.parse(message.value?.toString() || '{}');
-        this.logger.log(`📥 Evento recibido [${topic}]: ${JSON.stringify(payload)}`);
-      },
-    });
-    this.logger.log('✅ Kafka Consumer suscrito a: group.member.removed');
   }
 
   async onModuleDestroy() {
     await this.producer.disconnect();
-    await this.consumer.disconnect();
   }
 
   // ── Mensajes grupales ─────────────────────────────────────────

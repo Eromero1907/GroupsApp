@@ -120,6 +120,19 @@ export function Dashboard() {
     setIsCreateModalOpen(false)
   }
 
+  const handleGroupDeleted = (groupId: string) => {
+    setGroups(prev => {
+      const next = prev.filter(g => g.id !== groupId)
+      setCurrentView(cv => {
+        if (cv?.type === "group" && cv.group.id === groupId) {
+          return next.length > 0 ? { type: "group", group: next[0] } : null
+        }
+        return cv
+      })
+      return next
+    })
+  }
+
   const handleSelectDm = (partnerId: string) => {
     setDmUnread(prev => { const n = new Map(prev); n.delete(partnerId); return n })
     setDmPartners(prev => new Set(prev).add(partnerId))
@@ -206,6 +219,7 @@ export function Dashboard() {
           group={selectedGroup}
           allUsers={users}
           userContacts={contacts}
+          onGroupDeleted={handleGroupDeleted}
         />
       )}
     </div>

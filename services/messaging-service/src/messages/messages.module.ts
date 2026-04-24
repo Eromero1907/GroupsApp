@@ -8,6 +8,7 @@ import { MessagesController } from './messages.controller';
 import { MessagesGrpcController } from './messages.grpc.controller';
 import { DirectMessagesService } from './direct-messages.service';
 import { DirectMessagesController } from './direct-messages.controller';
+import { GroupEventsConsumerService } from './group-events.consumer';
 import { KafkaModule } from '../kafka/kafka.module';
 import { HttpClientService } from '../common/http-client.service';
 
@@ -17,6 +18,6 @@ import { HttpClientService } from '../common/http-client.service';
     KafkaModule,
   ],
   controllers: [MessagesController, MessagesGrpcController, DirectMessagesController],
-  providers: [MessagesService, DirectMessagesService, HttpClientService],
+  providers: [MessagesService, DirectMessagesService, HttpClientService, GroupEventsConsumerService],
 })
 export class MessagesModule {}

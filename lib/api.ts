@@ -306,7 +306,10 @@ export const groupsApi = {
 
   async delete(id: string): Promise<void> {
     const res = await fetch(`${API_BASE_URL}/groups/${id}`, { method: "DELETE", headers: getAuthHeaders() })
-    if (!res.ok) throw new ApiError(res.status, "Failed to delete group")
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}))
+      throw new ApiError(res.status, (errorData as { message?: string }).message || "Failed to delete group")
+    }
   },
 
   async getMembers(groupId: string): Promise<GroupMember[]> {

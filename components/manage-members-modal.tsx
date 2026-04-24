@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { X, UserPlus, UserMinus, Search, Hash, Shield, ChevronDown, Globe, Lock, CheckCircle, XCircle } from "lucide-react"
-import { groupsApi, type Group, type GroupMember, type User, type GroupSettings, type JoinRequest } from "@/lib/api"
+import { X, UserPlus, UserMinus, Search, Hash, Shield, Globe, Lock, CheckCircle, XCircle, Trash2 } from "lucide-react"
+import { groupsApi, ApiError, type Group, type GroupMember, type User, type GroupSettings, type JoinRequest } from "@/lib/api"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/contexts/toast-context"
 
@@ -12,11 +12,12 @@ interface ManageMembersModalProps {
   group: Group
   allUsers: User[]
   userContacts: Set<string>
+  onGroupDeleted?: (groupId: string) => void
 }
 
 type Tab = "members" | "add" | "requests" | "settings"
 
-export function ManageMembersModal({ isOpen, onClose, group, allUsers, userContacts }: ManageMembersModalProps) {
+export function ManageMembersModal({ isOpen, onClose, group, allUsers, userContacts, onGroupDeleted }: ManageMembersModalProps) {
   const { user: currentUser } = useAuth()
   const { showToast } = useToast()
   const [members, setMembers] = useState<GroupMember[]>([])
@@ -27,6 +28,8 @@ export function ManageMembersModal({ isOpen, onClose, group, allUsers, userConta
   const [activeTab, setActiveTab] = useState<Tab>("members")
   const [actionInProgress, setActionInProgress] = useState<string | null>(null)
   const [savingSettings, setSavingSettings] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [deletingGroup, setDeletingGroup] = useState(false)
 
   // Settings form state
   const [settingsForm, setSettingsForm] = useState({
@@ -66,7 +69,7 @@ export function ManageMembersModal({ isOpen, onClose, group, allUsers, userConta
   }, [isOpen, fetchData])
 
   useEffect(() => {
-    if (!isOpen) { setSearchQuery(""); setActiveTab("members") }
+    if (!isOpen) { setSearchQuery(""); setActiveTab("members"); setDeleteConfirm(false) }
   }, [isOpen])
 
   const memberUserIds = new Set(members.map(m => m.userId))
@@ -176,6 +179,22 @@ export function ManageMembersModal({ isOpen, onClose, group, allUsers, userConta
       showToast("Failed to save settings", "error")
     }
     finally { setSavingSettings(false) }
+  }
+
+  const handleDeleteGroup = async () => {
+    setDeletingGroup(true)
+    try {
+      await groupsApi.delete(group.id)
+      showToast("Channel deleted", "success")
+      onGroupDeleted?.(group.id)
+      onClose()
+    } catch (e) {
+      console.error(e)
+      const msg = e instanceof ApiError ? e.message : "Could not delete channel."
+      showToast(msg, "error")
+    } finally {
+      setDeletingGroup(false)
+    }
   }
 
   if (!isOpen) return null
@@ -457,6 +476,52 @@ export function ManageMembersModal({ isOpen, onClose, group, allUsers, userConta
               >
                 {savingSettings ? "Saving…" : "Save settings"}
               </button>
+
+              <div className="mt-8 rounded-lg border border-red-200 bg-red-50/50 p-4">
+                <h3 className="text-sm font-semibold text-red-800">Danger zone</h3>
+                <p className="mt-1 text-xs text-red-900/70">
+                  Permanently delete this channel and its membership data. Messages may remain in history on the server depending on configuration.
+                </p>
+                {!deleteConfirm ? (
+                  <button
+                    type="button"
+                    onClick={() => setDeleteConfirm(true)}
+                    className="mt-3 inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100/80 transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete channel
+                  </button>
+                ) : (
+                  <div className="mt-3 space-y-3">
+                    <p className="text-sm font-medium text-red-900">
+                      Delete <span className="font-semibold">#{group.name}</span>? This cannot be undone.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={handleDeleteGroup}
+                        disabled={deletingGroup}
+                        className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+                      >
+                        {deletingGroup ? (
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                        Yes, delete channel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteConfirm(false)}
+                        disabled={deletingGroup}
+                        className="rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

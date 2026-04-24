@@ -3,6 +3,7 @@
 import {
   Controller, Get, Post, Put, Delete,
   Param, Body, HttpCode, HttpStatus, Query,
+  BadRequestException,
 } from '@nestjs/common';
 import { GroupsService } from './groups.service';
 import { CreateGroupDto, UpdateGroupDto, CreateJoinRequestDto, ReviewJoinRequestDto } from './dto/groups.dto';
@@ -50,8 +51,12 @@ export class GroupsController {
   }
 
   @Delete(':id')
-  async delete(@Param('id') id: string) {
-    return this.groupsService.delete(id);
+  async delete(
+    @Param('id') id: string,
+    @Query('requestedBy') requestedBy?: string,
+  ) {
+    if (!requestedBy) throw new BadRequestException('requestedBy es requerido');
+    return this.groupsService.delete(id, requestedBy);
   }
 
   // ── Miembros ───────────────────────────────────────────────────
