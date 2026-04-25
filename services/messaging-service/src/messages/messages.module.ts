@@ -11,6 +11,7 @@ import { DirectMessagesController } from './direct-messages.controller';
 import { GroupEventsConsumerService } from './group-events.consumer';
 import { KafkaModule } from '../kafka/kafka.module';
 import { HttpClientService } from '../common/http-client.service';
+import { MessageHashPartitionBootstrap } from './message-hash-partition.bootstrap';
 
 @Module({
   imports: [
@@ -18,6 +19,12 @@ import { HttpClientService } from '../common/http-client.service';
     KafkaModule,
   ],
   controllers: [MessagesController, MessagesGrpcController, DirectMessagesController],
-  providers: [MessagesService, DirectMessagesService, HttpClientService, GroupEventsConsumerService],
+  providers: [
+    MessagesService,
+    DirectMessagesService,
+    HttpClientService,
+    GroupEventsConsumerService,
+    MessageHashPartitionBootstrap,
+  ],
 })
 export class MessagesModule {}

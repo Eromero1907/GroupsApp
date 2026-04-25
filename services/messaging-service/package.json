@@ -1,7 +1,7 @@
 {
   "name": "messaging-service",
   "version": "1.0.0",
-  "description": "Microservicio de Mensajer\u00eda - GroupsApp",
+  "description": "Microservicio de Mensajería - GroupsApp",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
@@ -11,9 +11,12 @@
     "start:prod": "node dist/main"
   },
   "dependencies": {
+    "@grpc/grpc-js": "^1.11.1",
+    "@grpc/proto-loader": "^0.7.13",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.0.1",
+    "@nestjs/microservices": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/typeorm": "^11.0.0",
     "axios": "^1.7.0",
@@ -21,19 +24,17 @@
     "class-validator": "^0.14.1",
     "kafkajs": "^2.2.4",
     "pg": "^8.20.0",
+    "prom-client": "^15.1.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "typeorm": "^0.3.28",
-    "@nestjs/microservices": "^11.0.1",
-    "@grpc/grpc-js": "^1.11.1",
-    "@grpc/proto-loader": "^0.7.13"
+    "typeorm": "^0.3.28"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@types/node": "^24.0.0",
-    "typescript": "^5.7.3",
     "ts-node": "^10.9.2",
-    "tsconfig-paths": "^4.2.0"
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.7.3"
   }
 }

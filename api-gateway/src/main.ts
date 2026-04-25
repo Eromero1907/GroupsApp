@@ -15,6 +15,11 @@ async function bootstrap() {
 
   app.enableCors();
 
+  // Health check para Kubernetes/ALB (debe ser público y sin auth)
+  app.getHttpAdapter().get('/health', (req, res) =>
+    res.json({ status: 'ok', service: 'api-gateway' }),
+  );
+
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
 

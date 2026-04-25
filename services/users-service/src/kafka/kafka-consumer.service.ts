@@ -12,7 +12,10 @@ export class KafkaConsumerService implements OnModuleInit, OnModuleDestroy {
   constructor(private usersService: UsersService) {
     this.kafka = new Kafka({
       clientId: 'users-service-consumer',
-      brokers: [process.env.KAFKA_BROKER || 'localhost:9092'],
+      brokers: (process.env.KAFKA_BROKER || 'localhost:9092')
+        .split(',')
+        .map((b) => b.trim())
+        .filter(Boolean),
       retry: { initialRetryTime: 3000, retries: 20 },
     });
     this.consumer = this.kafka.consumer({ groupId: 'users-service-group' });

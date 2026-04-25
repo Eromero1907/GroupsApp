@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: groupsapp-config
+  namespace: groupsapp
+data:
+  # Cuenta/región (solo informativo; el image: va en los Deployments)
+  aws.account_id: "531032605956"
+  aws.region: "us-east-1"
+
+  # RDS (writer). Activa Multi-AZ en la consola AWS: réplica síncrona + failover automático (misma URL).
+  rds.host: "groupsapp-postgres.clqs0gm04yt9.us-east-1.rds.amazonaws.com"
+  # RDS requiere TLS; los servicios leen DB_SSL y activan ssl en el driver node-postgres
+  db.ssl: "true"
+
+  # Kafka bootstrap.
+  # Nota: las imágenes actuales de servicios esperan un único host:puerto.
+  # `kafka-headless` devuelve varios A-records (kafka-0/1/2) y mantiene resiliencia.
+  kafka.broker: "kafka-headless:9092"
+
+  # Imagen tag (cambia si publicas otra)
+  app.imageTag: "latest"
+
+  # URLs internas (DNS de Kubernetes)
+  auth.service.url: "http://auth-service:3001"
+  users.service.url: "http://users-service:3002"
+  users.grpc.url: "users-service:50052"
+  groups.service.url: "http://groups-service:3003"
+  groups.grpc.url: "groups-service:50053"
+  messaging.service.url: "http://messaging-service:3005"
+  messaging.grpc.url: "messaging-service:50054"
+  media.service.url: "http://media-service:3004"
+  presence.service.url: "http://presence-service:3006"
+
+  # gRPC: rutas a protos dentro de la imagen (requiere Dockerfiles con /app/proto)
+  users.proto.path: "/app/proto/users.proto"
+  groups.proto.path: "/app/proto/groups.proto"
+  messaging.proto.path: "/app/proto/messaging.proto"
+
+  # Media: URL pública base para metadatos (NLB/edge; sin slash final)
+  # Si luego pones API detrás de HTTPS+ACM, actualiza a https://...
+  storage.baseUrl: "http://k8s-groupsap-groupsap-0257983045-9299722ed02640ee.elb.us-east-1.amazonaws.com"

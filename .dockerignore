@@ -1,0 +1,9 @@
+# Reduce Docker build context (builds should use repo root: `docker build -f <path/Dockerfile> .`)
+
+**/.next
+**/node_modules
+**/.git
+**/dist
+**/*.log
+**/.env*
+!**/.env.example

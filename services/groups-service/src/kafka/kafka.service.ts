@@ -6,23 +6,47 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(KafkaService.name);
   private kafka: Kafka;
   private producer: Producer;
+  private connected = false;
 
   constructor() {
     this.kafka = new Kafka({
       clientId: 'groups-service',
-      brokers: [process.env.KAFKA_BROKER || 'localhost:9092'],
+      brokers: (process.env.KAFKA_BROKER || 'localhost:9092')
+        .split(',')
+        .map((b) => b.trim())
+        .filter(Boolean),
       retry: { initialRetryTime: 300, retries: 10 },
     });
     this.producer = this.kafka.producer();
   }
 
   async onModuleInit() {
-    await this.producer.connect();
-    this.logger.log('✅ Kafka Producer conectado');
+    this.connectWithRetry();
+  }
+
+  private connectWithRetry() {
+    const loop = async () => {
+      let attempt = 0;
+      while (!this.connected) {
+        try {
+          await this.producer.connect();
+          this.connected = true;
+          this.logger.log('✅ Kafka Producer conectado');
+        } catch (err) {
+          attempt++;
+          const wait = Math.min(5000 * attempt, 30000);
+          this.logger.warn(
+            `Kafka no disponible (intento ${attempt}), reintento en ${wait / 1000}s…`,
+          );
+          await new Promise((r) => setTimeout(r, wait));
+        }
+      }
+    };
+    void loop();
   }
 
   async onModuleDestroy() {
-    await this.producer.disconnect();
+    if (this.connected) await this.producer.disconnect();
   }
 
   async emitGroupCreated(payload: {
@@ -43,6 +67,10 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
   }) { await this.emit('group.deleted', payload); }
 
   private async emit(topic: string, payload: any) {
+    if (!this.connected) {
+      this.logger.warn(`Kafka no conectado, descartando [${topic}]`);
+      return;
+    }
     try {
       await this.producer.send({
         topic,

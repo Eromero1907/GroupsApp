@@ -1,5 +1,10 @@
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 
+const dbUseSsl = (): boolean => {
+  const v = process.env.DB_SSL;
+  return v === 'true' || v === '1';
+};
+
 export const databaseConfig = (): TypeOrmModuleOptions => ({
   type: 'postgres',
   host: process.env.DB_HOST || 'localhost',
@@ -11,4 +16,5 @@ export const databaseConfig = (): TypeOrmModuleOptions => ({
   // En producción poner false y usar migraciones
   synchronize: process.env.NODE_ENV !== 'production',
   logging: process.env.NODE_ENV === 'development',
+  ssl: dbUseSsl() ? { rejectUnauthorized: false } : false,
 });

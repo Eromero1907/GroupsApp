@@ -1,0 +1,59 @@
+# Requiere AWS Load Balancer Controller + IngressClass "alb"
+# Importante: Socket.IO usa el path "/socket.io" aunque el namespace de Nest sea "/presence".
+# Por eso presence-service recibe tráfico en "/socket.io" y el resto va al api-gateway.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: groupsapp-public-socketio
+  namespace: groupsapp
+  annotations:
+    alb.ingress.kubernetes.io/group.name: groupsapp-public
+    alb.ingress.kubernetes.io/group.order: "10"
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    # Sustituye por tus subnet IDs públicas (2+ AZ)
+    alb.ingress.kubernetes.io/subnets: subnet-09b0c8c5a858ec16e,subnet-0dac6680c628db381
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    # WebSockets + long polling
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=3600
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-port: traffic-port
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /socket.io
+            pathType: Prefix
+            backend:
+              service:
+                name: presence-service
+                port:
+                  number: 3006
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: groupsapp-public-default
+  namespace: groupsapp
+  annotations:
+    alb.ingress.kubernetes.io/group.name: groupsapp-public
+    alb.ingress.kubernetes.io/group.order: "20"
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/subnets: subnet-09b0c8c5a858ec16e,subnet-0dac6680c628db381
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-port: traffic-port
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 3000

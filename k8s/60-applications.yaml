@@ -1,0 +1,482 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: groupsapp
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: auth-service }
+  template:
+    metadata:
+      labels: { app: auth-service }
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values: [auth-service]
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: auth-service
+          image: 531032605956.dkr.ecr.us-east-1.amazonaws.com/groupsapp/auth-service:latest
+          imagePullPolicy: Always
+          ports: [{ containerPort: 3001 }]
+          env:
+            - { name: NODE_ENV, value: "development" }
+            - { name: PORT, value: "3001" }
+            - name: JWT_SECRET
+              valueFrom: { secretKeyRef: { name: groupsapp-secrets, key: jwt.secret } }
+            - { name: KAFKA_BROKER, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: kafka.broker } } }
+            - { name: DB_HOST, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: rds.host } } }
+            - { name: DB_PORT, value: "5432" }
+            - { name: DB_SSL, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: db.ssl } } }
+            - name: DB_USERNAME
+              valueFrom: { secretKeyRef: { name: groupsapp-secrets, key: db.username } }
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: groupsapp-secrets, key: db.password } }
+            - { name: DB_NAME, value: "auth_db" }
+          readinessProbe:
+            httpGet: { path: /health, port: 3001 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 3001 }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: groupsapp
+spec:
+  type: ClusterIP
+  selector: { app: auth-service }
+  ports:
+    - name: http
+      port: 3001
+      targetPort: 3001
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: users-service
+  namespace: groupsapp
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: users-service }
+  template:
+    metadata:
+      labels: { app: users-service }
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values: [users-service]
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: users-service
+          image: 531032605956.dkr.ecr.us-east-1.amazonaws.com/groupsapp/users-service:latest
+          imagePullPolicy: Always
+          ports:
+            - { name: http, containerPort: 3002 }
+            - { name: grpc, containerPort: 50052 }
+          env:
+            - { name: NODE_ENV, value: "development" }
+            - { name: PORT, value: "3002" }
+            - { name: GRPC_PORT, value: "50052" }
+            - { name: PROTO_PATH, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: users.proto.path } } }
+            - { name: KAFKA_BROKER, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: kafka.broker } } }
+            - name: JWT_SECRET
+              valueFrom: { secretKeyRef: { name: groupsapp-secrets, key: jwt.secret } }
+            - { name: AUTH_SERVICE_URL, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: auth.service.url } } }
+            - { name: DB_HOST, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: rds.host } } }
+            - { name: DB_PORT, value: "5432" }
+            - { name: DB_SSL, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: db.ssl } } }
+            - name: DB_USERNAME
+              valueFrom: { secretKeyRef: { name: groupsapp-secrets, key: db.username } }
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: groupsapp-secrets, key: db.password } }
+            - { name: DB_NAME, value: "users_db" }
+          readinessProbe:
+            httpGet: { path: /health, port: 3002 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 3002 }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: users-service
+  namespace: groupsapp
+spec:
+  type: ClusterIP
+  selector: { app: users-service }
+  ports:
+    - { name: http, port: 3002, targetPort: 3002 }
+    - { name: grpc, port: 50052, targetPort: 50052 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: groups-service
+  namespace: groupsapp
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: groups-service }
+  template:
+    metadata:
+      labels: { app: groups-service }
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values: [groups-service]
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: groups-service
+          image: 531032605956.dkr.ecr.us-east-1.amazonaws.com/groupsapp/groups-service:latest
+          imagePullPolicy: Always
+          ports:
+            - { name: http, containerPort: 3003 }
+            - { name: grpc, containerPort: 50053 }
+          env:
+            - { name: NODE_ENV, value: "development" }
+            - { name: PORT, value: "3003" }
+            - { name: GRPC_PORT, value: "50053" }
+            - { name: PROTO_PATH, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: groups.proto.path } } }
+            - { name: USERS_PROTO_PATH, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: users.proto.path } } }
+            - { name: KAFKA_BROKER, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: kafka.broker } } }
+            - name: JWT_SECRET
+              valueFrom: { secretKeyRef: { name: groupsapp-secrets, key: jwt.secret } }
+            - { name: USERS_SERVICE_URL, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: users.service.url } } }
+            - { name: USERS_GRPC_URL, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: users.grpc.url } } }
+            - { name: AUTH_SERVICE_URL, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: auth.service.url } } }
+            - { name: DB_HOST, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: rds.host } } }
+            - { name: DB_PORT, value: "5432" }
+            - { name: DB_SSL, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: db.ssl } } }
+            - name: DB_USERNAME
+              valueFrom: { secretKeyRef: { name: groupsapp-secrets, key: db.username } }
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: groupsapp-secrets, key: db.password } }
+            - { name: DB_NAME, value: "groups_db" }
+          readinessProbe:
+            httpGet: { path: /health, port: 3003 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 3003 }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: groups-service
+  namespace: groupsapp
+spec:
+  type: ClusterIP
+  selector: { app: groups-service }
+  ports:
+    - { name: http, port: 3003, targetPort: 3003 }
+    - { name: grpc, port: 50053, targetPort: 50053 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: messaging-service
+  namespace: groupsapp
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: messaging-service }
+  template:
+    metadata:
+      labels: { app: messaging-service }
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values: [messaging-service]
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: messaging-service
+          image: 531032605956.dkr.ecr.us-east-1.amazonaws.com/groupsapp/messaging-service:latest
+          imagePullPolicy: Always
+          ports:
+            - { name: http, containerPort: 3005 }
+            - { name: grpc, containerPort: 50054 }
+          env:
+            - { name: NODE_ENV, value: "development" }
+            - { name: PORT, value: "3005" }
+            - { name: GRPC_PORT, value: "50054" }
+            - { name: PROTO_PATH, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: messaging.proto.path } } }
+            - { name: GROUPS_PROTO_PATH, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: groups.proto.path } } }
+            - { name: KAFKA_BROKER, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: kafka.broker } } }
+            - name: JWT_SECRET
+              valueFrom: { secretKeyRef: { name: groupsapp-secrets, key: jwt.secret } }
+            - { name: USERS_SERVICE_URL, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: users.service.url } } }
+            - { name: GROUPS_SERVICE_URL, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: groups.service.url } } }
+            - { name: GROUPS_GRPC_URL, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: groups.grpc.url } } }
+            - { name: AUTH_SERVICE_URL, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: auth.service.url } } }
+            - { name: DB_HOST, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: rds.host } } }
+            - { name: DB_PORT, value: "5432" }
+            - { name: DB_SSL, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: db.ssl } } }
+            - name: DB_USERNAME
+              valueFrom: { secretKeyRef: { name: groupsapp-secrets, key: db.username } }
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: groupsapp-secrets, key: db.password } }
+            - { name: DB_NAME, value: "messaging_db" }
+          readinessProbe:
+            httpGet: { path: /health, port: 3005 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 3005 }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: messaging-service
+  namespace: groupsapp
+spec:
+  type: ClusterIP
+  selector: { app: messaging-service }
+  ports:
+    - { name: http, port: 3005, targetPort: 3005 }
+    - { name: grpc, port: 50054, targetPort: 50054 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: media-service
+  namespace: groupsapp
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: media-service }
+  template:
+    metadata:
+      labels: { app: media-service }
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values: [media-service]
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: media-service
+          image: 531032605956.dkr.ecr.us-east-1.amazonaws.com/groupsapp/media-service:latest
+          imagePullPolicy: Always
+          ports: [{ containerPort: 3004 }]
+          env:
+            - { name: NODE_ENV, value: "development" }
+            - { name: PORT, value: "3004" }
+            - { name: KAFKA_BROKER, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: kafka.broker } } }
+            - name: JWT_SECRET
+              valueFrom: { secretKeyRef: { name: groupsapp-secrets, key: jwt.secret } }
+            - { name: USERS_SERVICE_URL, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: users.service.url } } }
+            - { name: AUTH_SERVICE_URL, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: auth.service.url } } }
+            - { name: STORAGE_BASE_URL, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: storage.baseUrl } } }
+            - { name: DB_HOST, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: rds.host } } }
+            - { name: DB_PORT, value: "5432" }
+            - { name: DB_SSL, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: db.ssl } } }
+            - name: DB_USERNAME
+              valueFrom: { secretKeyRef: { name: groupsapp-secrets, key: db.username } }
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: groupsapp-secrets, key: db.password } }
+            - { name: DB_NAME, value: "media_db" }
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom: { secretKeyRef: { name: groupsapp-secrets, key: aws.accessKeyId } }
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: groupsapp-secrets, key: aws.secretAccessKey } }
+            - name: AWS_SESSION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: groupsapp-secrets
+                  key: aws.sessionToken
+                  optional: true
+            - name: S3_BUCKET
+              valueFrom: { secretKeyRef: { name: groupsapp-secrets, key: s3.bucket } }
+            - { name: AWS_REGION, value: "us-east-1" }
+          readinessProbe:
+            httpGet: { path: /health, port: 3004 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 3004 }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: media-service
+  namespace: groupsapp
+spec:
+  type: ClusterIP
+  selector: { app: media-service }
+  ports:
+    - { name: http, port: 3004, targetPort: 3004 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: presence-service
+  namespace: groupsapp
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: presence-service }
+  template:
+    metadata:
+      labels: { app: presence-service }
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values: [presence-service]
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: presence-service
+          image: 531032605956.dkr.ecr.us-east-1.amazonaws.com/groupsapp/presence-service:latest
+          imagePullPolicy: Always
+          ports: [{ containerPort: 3006 }]
+          env:
+            - { name: NODE_ENV, value: "development" }
+            - { name: PORT, value: "3006" }
+            - { name: KAFKA_BROKER, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: kafka.broker } } }
+            - name: JWT_SECRET
+              valueFrom: { secretKeyRef: { name: groupsapp-secrets, key: jwt.secret } }
+            - name: REDIS_URL
+              valueFrom: { secretKeyRef: { name: groupsapp-secrets, key: redis.url } }
+            - { name: DB_HOST, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: rds.host } } }
+            - { name: DB_PORT, value: "5432" }
+            - { name: DB_SSL, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: db.ssl } } }
+            - name: DB_USERNAME
+              valueFrom: { secretKeyRef: { name: groupsapp-secrets, key: db.username } }
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: groupsapp-secrets, key: db.password } }
+            - { name: DB_NAME, value: "presence_db" }
+          readinessProbe:
+            httpGet: { path: /health, port: 3006 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 3006 }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: presence-service
+  namespace: groupsapp
+spec:
+  type: ClusterIP
+  selector: { app: presence-service }
+  ports:
+    - { name: http, port: 3006, targetPort: 3006 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: groupsapp
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: api-gateway }
+  template:
+    metadata:
+      labels: { app: api-gateway }
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values: [api-gateway]
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: api-gateway
+          image: 531032605956.dkr.ecr.us-east-1.amazonaws.com/groupsapp/api-gateway:latest
+          imagePullPolicy: Always
+          ports: [{ containerPort: 3000 }]
+          env:
+            - { name: NODE_ENV, value: "development" }
+            - { name: PORT, value: "3000" }
+            - name: JWT_SECRET
+              valueFrom: { secretKeyRef: { name: groupsapp-secrets, key: jwt.secret } }
+            - { name: AUTH_SERVICE_URL, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: auth.service.url } } }
+            - { name: USERS_SERVICE_URL, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: users.service.url } } }
+            - { name: GROUPS_SERVICE_URL, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: groups.service.url } } }
+            - { name: MESSAGING_SERVICE_URL, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: messaging.service.url } } }
+            - { name: MEDIA_SERVICE_URL, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: media.service.url } } }
+            - { name: PRESENCE_SERVICE_URL, valueFrom: { configMapKeyRef: { name: groupsapp-config, key: presence.service.url } } }
+          readinessProbe:
+            httpGet: { path: /health, port: 3000 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 3000 }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: groupsapp
+spec:
+  type: ClusterIP
+  selector: { app: api-gateway }
+  ports:
+    - { name: http, port: 3000, targetPort: 3000 }

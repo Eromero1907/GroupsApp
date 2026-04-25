@@ -16,11 +16,15 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
   private kafka: Kafka;
   private producer: Producer;
   private consumer: Consumer;
+  private producerConnected = false;
 
   constructor() {
     this.kafka = new Kafka({
       clientId: 'presence-service',
-      brokers: [process.env.KAFKA_BROKER || 'localhost:9092'],
+      brokers: (process.env.KAFKA_BROKER || 'localhost:9092')
+        .split(',')
+        .map((b) => b.trim())
+        .filter(Boolean),
       retry: { initialRetryTime: 300, retries: 10 },
     });
     this.producer = this.kafka.producer();
@@ -31,73 +35,113 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
   registerPresenceGateway(gw: any) { presenceGatewayRef = gw; }
 
   async onModuleInit() {
-    await this.producer.connect();
-    this.logger.log('✅ Kafka Producer conectado');
+    this.startProducerInBackground();
+    this.startConsumerInBackground();
+  }
 
-    await this.consumer.connect();
-    await this.consumer.subscribe({
-      topics: [
-        'message.created',
-        'file.uploaded',
-        'message.read',
-        'direct.message.created',
-        'direct.message.read',
-      ],
-      fromBeginning: false,
-    });
-
-    await this.consumer.run({
-      eachMessage: async ({ topic, message }) => {
+  private startProducerInBackground() {
+    const loop = async () => {
+      let attempt = 0;
+      while (!this.producerConnected) {
         try {
-          const payload = JSON.parse(message.value?.toString() || '{}');
-          this.logger.debug(`📥 [${topic}]`);
-
-          if (topic === 'message.created' && payload.senderId) {
-            await presenceServiceRef?.updateLastSeen(payload.senderId);
-            // Broadcast nuevo mensaje a la room del grupo
-            presenceGatewayRef?.broadcastGroupMessage(payload.groupId, payload);
-          }
-
-          if (topic === 'file.uploaded' && payload.userId) {
-            await presenceServiceRef?.updateLastSeen(payload.userId);
-          }
-
-          if (topic === 'message.read') {
-            // Notificar lectura a la sala del grupo
-            if (payload.groupId) {
-              presenceGatewayRef?.broadcastMessageRead(payload.groupId, {
-                messageId: payload.messageId,
-                userId: payload.userId,
-                timestamp: payload.timestamp,
-              });
-            }
-          }
-
-          if (topic === 'direct.message.created') {
-            // Notificar al receiver del DM
-            presenceGatewayRef?.broadcastDirectMessage(payload.receiverId, payload);
-            await presenceServiceRef?.updateLastSeen(payload.senderId);
-          }
-
-          if (topic === 'direct.message.read') {
-            presenceGatewayRef?.broadcastDmRead(payload.userId, {
-              messageId: payload.messageId,
-              userId: payload.userId,
-              timestamp: payload.timestamp,
-            });
-          }
+          await this.producer.connect();
+          this.producerConnected = true;
+          this.logger.log('✅ Kafka Producer conectado');
         } catch (err) {
-          this.logger.error(`Error procesando evento [${topic}]: ${err.message}`);
+          attempt++;
+          const wait = Math.min(5000 * attempt, 30000);
+          this.logger.warn(
+            `Kafka producer no disponible (intento ${attempt}), reintento en ${wait / 1000}s…`,
+          );
+          await new Promise((r) => setTimeout(r, wait));
         }
-      },
-    });
+      }
+    };
+    void loop();
+  }
 
-    this.logger.log('✅ Kafka Consumer suscrito (5 topics)');
+  private startConsumerInBackground() {
+    const topics = [
+      'message.created',
+      'file.uploaded',
+      'message.read',
+      'direct.message.created',
+      'direct.message.read',
+    ];
+    const run = async () => {
+      let attempt = 0;
+      for (;;) {
+        try {
+          await this.consumer.connect();
+          await this.consumer.subscribe({ topics, fromBeginning: false });
+          this.logger.log('✅ Kafka Consumer suscrito (5 topics)');
+          await this.consumer.run({
+            eachMessage: async ({ topic, message }) => {
+              try {
+                const payload = JSON.parse(message.value?.toString() || '{}');
+                this.logger.debug(`📥 [${topic}]`);
+
+                if (topic === 'message.created' && payload.senderId) {
+                  await presenceServiceRef?.updateLastSeen(payload.senderId);
+                  presenceGatewayRef?.broadcastGroupMessage(payload.groupId, payload);
+                }
+
+                if (topic === 'file.uploaded' && payload.userId) {
+                  await presenceServiceRef?.updateLastSeen(payload.userId);
+                }
+
+                if (topic === 'message.read') {
+                  if (payload.groupId) {
+                    presenceGatewayRef?.broadcastMessageRead(payload.groupId, {
+                      messageId: payload.messageId,
+                      userId: payload.userId,
+                      timestamp: payload.timestamp,
+                    });
+                  }
+                }
+
+                if (topic === 'direct.message.created') {
+                  presenceGatewayRef?.broadcastDirectMessage(payload.receiverId, payload);
+                  await presenceServiceRef?.updateLastSeen(payload.senderId);
+                }
+
+                if (topic === 'direct.message.read') {
+                  presenceGatewayRef?.broadcastDmRead(payload.userId, {
+                    messageId: payload.messageId,
+                    userId: payload.userId,
+                    timestamp: payload.timestamp,
+                  });
+                }
+              } catch (err) {
+                this.logger.error(`Error procesando evento [${topic}]: ${err.message}`);
+              }
+            },
+          });
+        } catch (err) {
+          attempt++;
+          const wait = Math.min(5000 * attempt, 30000);
+          this.logger.warn(
+            `Kafka consumer error: ${(err as Error).message} — reintento en ${wait / 1000}s…`,
+          );
+          try {
+            await this.consumer.disconnect();
+          } catch {
+            // ignore
+          }
+          await new Promise((r) => setTimeout(r, wait));
+        }
+      }
+    };
+    void run();
   }
 
   async onModuleDestroy() {
-    await this.producer.disconnect();
-    await this.consumer.disconnect();
+    if (this.producerConnected) await this.producer.disconnect();
+    try {
+      await this.consumer.disconnect();
+    } catch {
+      // ignore
+    }
   }
 
   async emitUserOnline(payload: { userId: string; timestamp: string }) {
@@ -109,6 +153,10 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async emit(topic: string, payload: any) {
+    if (!this.producerConnected) {
+      this.logger.warn(`Kafka no conectado, descartando [${topic}]`);
+      return;
+    }
     try {
       await this.producer.send({
         topic,

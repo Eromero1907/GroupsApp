@@ -1,0 +1,30 @@
+# Garantiza al menos 1 pod en servicios críticos durante interrupciones voluntarias (drain, etc.).
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-gateway-pdb
+  namespace: groupsapp
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: api-gateway }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: messaging-service-pdb
+  namespace: groupsapp
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: messaging-service }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: groupsapp-edge-nginx-pdb
+  namespace: groupsapp
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: groupsapp-edge-nginx }

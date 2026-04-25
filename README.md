@@ -2,6 +2,8 @@
 
 Plataforma de mensajería grupal con arquitectura de microservicios. Proyecto universitario.
 
+**Despliegue en AWS (EKS) y trazabilidad al enunciado del curso:** ver [docs/DESPLIEGUE-AWS-GROUPSAPP.md](docs/DESPLIEGUE-AWS-GROUPSAPP.md).
+
 ## Stack tecnológico
 
 - **Frontend:** Next.js 15 + Tailwind CSS

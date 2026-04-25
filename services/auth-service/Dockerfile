@@ -1,14 +1,16 @@
+# Build con contexto = raíz del monorepo:
+#   docker build -f services/auth-service/Dockerfile -t <ECR_URI> .
 FROM node:20-alpine AS builder
 WORKDIR /app
-COPY package*.json ./
+COPY services/auth-service/package*.json ./
 RUN npm install
 RUN npm install prom-client axios
-COPY . .
+COPY services/auth-service/ ./
 RUN npm run build
 
 FROM node:20-alpine AS production
 WORKDIR /app
-COPY package*.json ./
+COPY services/auth-service/package*.json ./
 RUN npm install --omit=dev
 RUN npm install prom-client axios
 COPY --from=builder /app/dist ./dist
