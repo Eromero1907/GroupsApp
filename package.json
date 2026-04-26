@@ -6,7 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "npm run test:web && npm run test:auth && npm run test:gateway",
+    "test:web": "vitest run",
+    "test:web:watch": "vitest",
+    "test:auth": "npm test --prefix services/auth-service",
+    "test:gateway": "npm test --prefix api-gateway"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -24,6 +29,7 @@
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.14",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^3.0.0"
   }
 }

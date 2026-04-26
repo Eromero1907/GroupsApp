@@ -61,6 +61,7 @@ __v0_jsx-dev-runtime.ts
 *.tsbuildinfo
 .turbo/
 
-# ── Documentación local (solo README.md raíz en el remoto) ───
+# Markdown: por defecto no versionar notas sueltas; sí README e informes en docs/
 *.md
 !/README.md
+!docs/**/*.md

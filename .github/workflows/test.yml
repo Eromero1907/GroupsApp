@@ -1,0 +1,36 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            services/auth-service/package-lock.json
+            api-gateway/package-lock.json
+
+      - name: Instalar y Vitest (raíz)
+        run: npm ci
+
+      - name: test:web
+        run: npm run test:web
+
+      - name: Instalar y pruebas auth-service
+        working-directory: services/auth-service
+        run: npm ci && npm test
+
+      - name: Instalar y pruebas api-gateway
+        working-directory: api-gateway
+        run: npm ci && npm test
